@@ -95,7 +95,8 @@ app.get('/mypage', authenticateToken, (req, res) => {
 
 // POSTS 엔드포인트 (로그인 없이 접근 가능)
 app.get('/posts', (req, res) => {
-  const query = 'SELECT posts.title, users.id AS user_id, posts.time FROM posts JOIN users ON posts.user_id = users.user_id';
+  const query = 'SELECT posts.posts_id, posts.title, users.id AS user_id, posts.time FROM posts JOIN users ON posts.user_id = users.user_id';
+
 
   db.query(query, (err, results) => {
     if (err) {
@@ -110,10 +111,6 @@ app.get('/posts', (req, res) => {
     });
   });
 });
-
-
-
-
 
 // 서버 시작
 app.listen(port, () => {

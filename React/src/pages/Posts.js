@@ -13,6 +13,7 @@ function Posts() {
       .get('http://localhost:8080/posts') // API 요청
       .then((response) => {
         setPosts(response.data.posts); // 서버에서 반환된 데이터를 상태에 저장
+        console.log(response.data.posts);
       })
       .catch((error) => {
         console.error('Error fetching posts:', error);
@@ -31,7 +32,7 @@ function Posts() {
                 borderBottom: '1px solid #ccc',
               }}
             >
-              <Link to="/"><button>{post.title}</button></Link>
+              <Link to={`/post/${post.posts_id}`}><button>{post.title}</button></Link>
               <p>글쓴이: {post.user_id}</p>
               <p>날짜: {new Date(post.time).toLocaleString()}</p>
             </li>

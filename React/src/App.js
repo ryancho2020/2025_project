@@ -8,6 +8,7 @@ import MyPage from './pages/MyPage';
 import Board from './pages/Board';
 import Write from './pages/Write';
 import Navigation from './component/navigation';
+import PostDetail from './pages/PostDetail';
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
         <Route path="/mypage" element={<MyPage />} />
         <Route path="/board" element={<Board />} />
         <Route path="/write" element={<Write />} />
+        <Route path="/post/:id" element={<PostDetail />} />
       </Routes>
     </div>
   );
