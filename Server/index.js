@@ -112,6 +112,38 @@ app.get('/posts', (req, res) => {
   });
 });
 
+
+//글내용
+app.get("/posts/:id", (req, res) => {
+  const postId = req.params.id;
+
+  // content만 가져오는 쿼리
+  const sql = "SELECT content FROM posts WHERE posts_id = ?";
+
+  // posts와 users 테이블을 JOIN하여 필요한 데이터를 가져오는 쿼리
+  const query = 'SELECT posts.posts_id, posts.title, users.id AS user_id, posts.time, posts.content, posts.likes FROM posts JOIN users ON posts.user_id = users.user_id WHERE posts.posts_id = ?';
+
+  db.query(query, [postId], (err, result) => {
+    if (err) {
+      console.error('DB 오류:', err);
+      return res.status(500).json({ message: "서버 오류", error: err });
+    }
+
+    // 결과가 없다면 404 반환
+    if (result.length === 0) {
+      return res.status(404).json({ message: "게시글을 찾을 수 없습니다." });
+    }
+
+    // 쿼리에서 가져온 내용 반환
+    res.status(200).json({
+      success: true,
+      post: result[0], // 게시글 정보
+    });
+  });
+});
+
+
+
 // 서버 시작
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
