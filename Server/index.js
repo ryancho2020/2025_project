@@ -143,6 +143,93 @@ app.get("/posts/:id", (req, res) => {
 });
 
 
+// 좋아요 처리 엔드포인트
+app.post('/likes', authenticateToken, (req, res) => {
+  const { user_id, post_id } = req.body;
+
+  if (!user_id || !post_id) {
+    return res.status(400).json({ message: 'user_id와 post_id는 필수입니다.' });
+  }
+
+  // likes 테이블에서 이미 존재하는지 확인
+  const checkLikeQuery = 'SELECT * FROM likes WHERE user_id = ? AND post_id = ?';
+  db.query(checkLikeQuery, [user_id, post_id], (err, results) => {
+    if (err) {
+      console.error('DB 오류:', err);
+      return res.status(500).json({ message: '서버 오류' });
+    }
+
+    // 만약 이미 좋아요가 있다면, likes 테이블에서 해당 레코드를 삭제하고 좋아요 수를 감소
+    if (results.length > 0) {
+      const deleteLikeQuery = 'DELETE FROM likes WHERE user_id = ? AND post_id = ?';
+      db.query(deleteLikeQuery, [user_id, post_id], (err) => {
+        if (err) {
+          console.error('DB 오류:', err);
+          return res.status(500).json({ message: '서버 오류' });
+        }
+
+        // posts 테이블에서 해당 post_id의 likes 수를 1 감소
+        const decreaseLikesQuery = 'UPDATE posts SET likes = likes - 1 WHERE posts_id = ?';
+        db.query(decreaseLikesQuery, [post_id], (err) => {
+          if (err) {
+            console.error('DB 오류:', err);
+            return res.status(500).json({ message: '서버 오류' });
+          }
+
+          // 좋아요 수 감소 후 새로운 좋아요 수를 가져오기
+          const getPostLikesQuery = 'SELECT likes FROM posts WHERE posts_id = ?';
+          db.query(getPostLikesQuery, [post_id], (err, result) => {
+            if (err) {
+              console.error('DB 오류:', err);
+              return res.status(500).json({ message: '서버 오류' });
+            }
+
+            // 업데이트된 좋아요 수 반환
+            res.status(200).json({
+              message: '좋아요가 취소되었습니다.',
+              likes: result[0].likes, // 최신 좋아요 수
+            });
+          });
+        });
+      });
+    } else {
+      // 만약 좋아요가 없다면, likes 테이블에 추가하고 좋아요 수를 증가
+      const insertLikeQuery = 'INSERT INTO likes (user_id, post_id) VALUES (?, ?)';
+      db.query(insertLikeQuery, [user_id, post_id], (err) => {
+        if (err) {
+          console.error('DB 오류:', err);
+          return res.status(500).json({ message: '서버 오류' });
+        }
+
+        // posts 테이블에서 해당 post_id의 likes 수를 1 증가
+        const increaseLikesQuery = 'UPDATE posts SET likes = likes + 1 WHERE posts_id = ?';
+        db.query(increaseLikesQuery, [post_id], (err) => {
+          if (err) {
+            console.error('DB 오류:', err);
+            return res.status(500).json({ message: '서버 오류' });
+          }
+
+          // 좋아요 수 증가 후 새로운 좋아요 수를 가져오기
+          const getPostLikesQuery = 'SELECT likes FROM posts WHERE posts_id = ?';
+          db.query(getPostLikesQuery, [post_id], (err, result) => {
+            if (err) {
+              console.error('DB 오류:', err);
+              return res.status(500).json({ message: '서버 오류' });
+            }
+
+            // 업데이트된 좋아요 수 반환
+            res.status(200).json({
+              message: '좋아요가 추가되었습니다.',
+              likes: result[0].likes, // 최신 좋아요 수
+            });
+          });
+        });
+      });
+    }
+  });
+});
+
+
 
 // 서버 시작
 app.listen(port, () => {
