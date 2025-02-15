@@ -15,6 +15,9 @@ function authenticateToken(req, res, next) {
 
   jwt.verify(token, ACCESS_SECRET_KEY, (err, user) => {  // 비밀 키를 ACCESS_SECRET_KEY로 수정
     if (err) return res.status(403).json({ message: '유효하지 않은 토큰입니다.' });
+
+    console.log('🔍 JWT 해석된 user 정보:', user); // ✅ 이걸 확인해보자!
+
     req.user = user;  // 사용자 정보 저장
     next();
   });
@@ -61,9 +64,11 @@ app.post('/login', (req, res) => {
     if (results.length > 0) {
       const user = results[0];
 
+      console.log('🔍 user 객체:', user);
+
       // Access Token 생성 (여기서 이메일도 추가)
       const accessToken = jwt.sign(
-        { id: user.id, name: user.name, email: user.email },  // 이메일 추가
+        { user_id: user.user_id, id: user.id, name: user.name, email: user.email },  // 이메일 추가
         ACCESS_SECRET_KEY,
         { expiresIn: '1h' }
       );
@@ -145,89 +150,65 @@ app.get("/posts/:id", (req, res) => {
 
 // 좋아요 처리 엔드포인트
 app.post('/likes', authenticateToken, (req, res) => {
-  const { user_id, post_id } = req.body;
+  const { post_id } = req.body;
+  const user_id = req.user.user_id; // JWT에서 user_id 가져오기
 
   if (!user_id || !post_id) {
     return res.status(400).json({ message: 'user_id와 post_id는 필수입니다.' });
   }
 
-  // likes 테이블에서 이미 존재하는지 확인
-  const checkLikeQuery = 'SELECT * FROM likes WHERE user_id = ? AND post_id = ?';
-  db.query(checkLikeQuery, [user_id, post_id], (err, results) => {
+  // 1️⃣ 사용자가 해당 게시글에 이미 좋아요를 눌렀는지 확인
+  const checkQuery = 'SELECT * FROM likes WHERE user_id = ? AND post_id = ?';
+  db.query(checkQuery, [user_id, post_id], (err, results) => {
     if (err) {
-      console.error('DB 오류:', err);
-      return res.status(500).json({ message: '서버 오류' });
+      console.error('좋아요 확인 중 오류 발생:', err);
+      return res.status(500).json({ message: '서버 오류가 발생했습니다.' });
     }
 
-    // 만약 이미 좋아요가 있다면, likes 테이블에서 해당 레코드를 삭제하고 좋아요 수를 감소
     if (results.length > 0) {
-      const deleteLikeQuery = 'DELETE FROM likes WHERE user_id = ? AND post_id = ?';
-      db.query(deleteLikeQuery, [user_id, post_id], (err) => {
+      // 2️⃣ 이미 좋아요를 눌렀다면 → 좋아요 취소 (삭제) & posts 테이블의 likes 감소
+      const deleteQuery = 'DELETE FROM likes WHERE user_id = ? AND post_id = ?';
+      db.query(deleteQuery, [user_id, post_id], (err, deleteResult) => {
         if (err) {
-          console.error('DB 오류:', err);
-          return res.status(500).json({ message: '서버 오류' });
+          console.error('좋아요 취소 중 오류 발생:', err);
+          return res.status(500).json({ message: '좋아요 취소 중 서버 오류가 발생했습니다.' });
         }
 
-        // posts 테이블에서 해당 post_id의 likes 수를 1 감소
-        const decreaseLikesQuery = 'UPDATE posts SET likes = likes - 1 WHERE posts_id = ?';
-        db.query(decreaseLikesQuery, [post_id], (err) => {
+        // posts 테이블에서 likes 개수 감소
+        const decrementQuery = 'UPDATE posts SET likes = likes - 1 WHERE posts_id = ?'; // 수정된 부분
+        db.query(decrementQuery, [post_id], (err, updateResult) => {
           if (err) {
-            console.error('DB 오류:', err);
-            return res.status(500).json({ message: '서버 오류' });
+            console.error('게시글 좋아요 감소 중 오류 발생:', err);
+            return res.status(500).json({ message: '게시글 좋아요 감소 중 오류가 발생했습니다.' });
           }
 
-          // 좋아요 수 감소 후 새로운 좋아요 수를 가져오기
-          const getPostLikesQuery = 'SELECT likes FROM posts WHERE posts_id = ?';
-          db.query(getPostLikesQuery, [post_id], (err, result) => {
-            if (err) {
-              console.error('DB 오류:', err);
-              return res.status(500).json({ message: '서버 오류' });
-            }
-
-            // 업데이트된 좋아요 수 반환
-            res.status(200).json({
-              message: '좋아요가 취소되었습니다.',
-              likes: result[0].likes, // 최신 좋아요 수
-            });
-          });
+          return res.status(200).json({ message: '좋아요가 취소되었습니다.' });
         });
       });
     } else {
-      // 만약 좋아요가 없다면, likes 테이블에 추가하고 좋아요 수를 증가
-      const insertLikeQuery = 'INSERT INTO likes (user_id, post_id) VALUES (?, ?)';
-      db.query(insertLikeQuery, [user_id, post_id], (err) => {
+      // 3️⃣ 좋아요를 누르지 않은 경우 → 좋아요 추가 & posts 테이블의 likes 증가
+      const insertQuery = 'INSERT INTO likes (user_id, post_id) VALUES (?, ?)';
+      db.query(insertQuery, [user_id, post_id], (err, insertResult) => {
         if (err) {
-          console.error('DB 오류:', err);
-          return res.status(500).json({ message: '서버 오류' });
+          console.error('좋아요 추가 중 오류 발생:', err);
+          return res.status(500).json({ message: '좋아요 추가 중 서버 오류가 발생했습니다.' });
         }
 
-        // posts 테이블에서 해당 post_id의 likes 수를 1 증가
-        const increaseLikesQuery = 'UPDATE posts SET likes = likes + 1 WHERE posts_id = ?';
-        db.query(increaseLikesQuery, [post_id], (err) => {
+        // posts 테이블에서 likes 개수 증가
+        const incrementQuery = 'UPDATE posts SET likes = likes + 1 WHERE posts_id = ?'; // 수정된 부분
+        db.query(incrementQuery, [post_id], (err, updateResult) => {
           if (err) {
-            console.error('DB 오류:', err);
-            return res.status(500).json({ message: '서버 오류' });
+            console.error('게시글 좋아요 증가 중 오류 발생:', err);
+            return res.status(500).json({ message: '게시글 좋아요 증가 중 오류가 발생했습니다.' });
           }
 
-          // 좋아요 수 증가 후 새로운 좋아요 수를 가져오기
-          const getPostLikesQuery = 'SELECT likes FROM posts WHERE posts_id = ?';
-          db.query(getPostLikesQuery, [post_id], (err, result) => {
-            if (err) {
-              console.error('DB 오류:', err);
-              return res.status(500).json({ message: '서버 오류' });
-            }
-
-            // 업데이트된 좋아요 수 반환
-            res.status(200).json({
-              message: '좋아요가 추가되었습니다.',
-              likes: result[0].likes, // 최신 좋아요 수
-            });
-          });
+          return res.status(201).json({ message: '좋아요가 추가되었습니다.' });
         });
       });
     }
   });
 });
+
 
 
 

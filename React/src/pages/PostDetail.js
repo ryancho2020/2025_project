@@ -37,34 +37,34 @@ function PostDetail() {
       });
   }, [id]); // id가 변경될 때마다 다시 요청
 
+
   const handleLike = async () => {
-    if (!userId) {
-      alert("로그인 후 좋아요를 눌러주세요.");
-      return;
-    }
+  const token = localStorage.getItem("authToken"); // 토큰 가져오기
 
-    const token = localStorage.getItem("authToken"); // JWT 토큰을 로컬스토리지에서 가져옵니다.
+  if (!token) {
+    alert("로그인 후 좋아요를 눌러주세요.");
+    return;
+  }
 
-    try {
-      // 좋아요를 눌렀을 때 서버에 요청 보내기
-      const response = await axios.post(
-        "http://localhost:8080/likes", 
-        { user_id: userId, post_id: id },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`, // JWT 토큰을 Authorization 헤더에 추가
-          }
-        }
-      );
+  try {
+    const response = await axios.post(
+      "http://localhost:8080/likes",
+      { post_id: id }, // user_id는 보내지 않음! (서버에서 JWT로 처리)
+      {
+        headers: {
+          Authorization: `Bearer ${token}`, // JWT 인증 헤더 추가
+        },
+      }
+    );
 
-      // 서버에서 좋아요 업데이트 후 최신 데이터를 받기
-      setPost(response.data.post); // 서버 응답으로 받은 최신 게시글 데이터를 로컬 상태에 반영
-      alert(response.data.message); // 서버에서 반환한 메시지
-    } catch (error) {
-      console.error("좋아요 실패:", error);
-      alert(error.response?.data?.message || "좋아요를 실패했습니다.");
-    }
-  };
+    setPost(response.data.post); // 서버 응답으로 받은 최신 게시글 데이터를 로컬 상태에 반영
+    alert(response.data.message);
+  } catch (error) {
+    console.error("좋아요 실패:", error);
+    alert(error.response?.data?.message || "서버 오류가 발생했습니다.");
+  }
+};
+
 
   if (loading) return <p>Loading...</p>;
   if (error) return <p>Error: {error}</p>;
