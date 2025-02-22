@@ -175,14 +175,27 @@ app.post('/likes', authenticateToken, (req, res) => {
         }
 
         // posts 테이블에서 likes 개수 감소
-        const decrementQuery = 'UPDATE posts SET likes = likes - 1 WHERE posts_id = ?'; // 수정된 부분
+        const decrementQuery = 'UPDATE posts SET likes = likes - 1 WHERE posts_id = ?';
         db.query(decrementQuery, [post_id], (err, updateResult) => {
           if (err) {
             console.error('게시글 좋아요 감소 중 오류 발생:', err);
             return res.status(500).json({ message: '게시글 좋아요 감소 중 오류가 발생했습니다.' });
           }
 
-          return res.status(200).json({ message: '좋아요가 취소되었습니다.' });
+          // ✅ 업데이트된 게시글 데이터 조회 후 반환
+          const getPostQuery = 'SELECT * FROM posts WHERE posts_id = ?';
+          db.query(getPostQuery, [post_id], (err, postResult) => {
+            if (err) {
+              console.error('게시글 조회 중 오류 발생:', err);
+              return res.status(500).json({ message: '게시글을 가져오는 중 오류가 발생했습니다.' });
+            }
+
+            if (postResult.length === 0) {
+              return res.status(404).json({ message: '게시글을 찾을 수 없습니다.' });
+            }
+
+            return res.status(200).json({ message: '좋아요가 취소되었습니다.', post: postResult[0] });
+          });
         });
       });
     } else {
@@ -195,19 +208,57 @@ app.post('/likes', authenticateToken, (req, res) => {
         }
 
         // posts 테이블에서 likes 개수 증가
-        const incrementQuery = 'UPDATE posts SET likes = likes + 1 WHERE posts_id = ?'; // 수정된 부분
+        const incrementQuery = 'UPDATE posts SET likes = likes + 1 WHERE posts_id = ?';
         db.query(incrementQuery, [post_id], (err, updateResult) => {
           if (err) {
             console.error('게시글 좋아요 증가 중 오류 발생:', err);
             return res.status(500).json({ message: '게시글 좋아요 증가 중 오류가 발생했습니다.' });
           }
 
-          return res.status(201).json({ message: '좋아요가 추가되었습니다.' });
+          // ✅ 업데이트된 게시글 데이터 조회 후 반환
+          const getPostQuery = 'SELECT * FROM posts WHERE posts_id = ?';
+          db.query(getPostQuery, [post_id], (err, postResult) => {
+            if (err) {
+              console.error('게시글 조회 중 오류 발생:', err);
+              return res.status(500).json({ message: '게시글을 가져오는 중 오류가 발생했습니다.' });
+            }
+
+            if (postResult.length === 0) {
+              return res.status(404).json({ message: '게시글을 찾을 수 없습니다.' });
+            }
+
+            return res.status(201).json({ message: '좋아요가 추가되었습니다.', post: postResult[0] });
+          });
         });
       });
     }
   });
 });
+
+//글쓰기 엔드포인트
+app.post('/posts', authenticateToken, (req, res) => {
+  const { title, content } = req.body;
+  const user_id = req.user.user_id; // 🔥 JWT에서 user_id 가져오기!
+
+  if (!user_id) {
+    return res.status(403).json({ message: '유효하지 않은 사용자입니다.' });
+  }
+
+  if (!title || !content) {
+    return res.status(400).json({ message: '제목과 내용은 필수입니다.' });
+  }
+
+  const insertQuery = 'INSERT INTO posts (title, content, user_id) VALUES (?, ?, ?)';
+  db.query(insertQuery, [title, content, user_id], (err, result) => {
+    if (err) {
+      console.error('게시글 작성 중 오류:', err);
+      return res.status(500).json({ message: '게시글 작성 중 서버 오류가 발생했습니다.' });
+    }
+    return res.status(201).json({ message: '게시글이 성공적으로 작성되었습니다.' });
+  });
+});
+
+
 
 
 
